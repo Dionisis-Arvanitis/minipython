@@ -1,0 +1,361 @@
+Package minipython;
+
+Helpers
+	digit = ['0' .. '9'];
+	letter = ['a' .. 'z']|['A' .. 'Z'];
+	cr = 13; 
+	lf = 10;
+	all = [0..127]; 
+	eol = lf | cr | cr lf ;
+	not_eol = [all - [cr + lf]]; 
+	
+Tokens
+
+	tab = 9;
+	blank = (' ' | lf | cr);
+	comment = '#' not_eol* eol; 
+
+	/* Arithmetic Operators */
+	plus = '+';
+	minus = '-';
+	mult = '*';
+	exp = '**';
+	div = '/';
+	mod = '%';
+
+	/* Assignment Operators */
+	assign = '=';
+	sub_from = '-=';
+	div_by = '/=';
+
+	/* Logical Operators */
+	and = 'and';
+	or = 'or';
+	not = 'not';
+
+	/* Comparison Operators */
+	greater = '>';
+	less = '<';
+	greater_equal = '>=';
+	less_equal = '<=';
+	not_equal = '!=';
+	equal = '==';
+
+	/* Symbols */
+	left_par = '(';
+	right_par = ')';
+	left_br = '[';
+	right_br = ']';
+	comma = ',';
+	semi = ':';
+	dot = '.';
+
+	/* Keywords */
+	def = 'def';
+	if = 'if';
+	while = 'while';
+	for = 'for';
+	print = 'print';
+	return = 'return';
+	max = 'max';
+	min = 'min';
+	in = 'in';
+	assert = 'assert';
+	len = 'len';
+    cimport = 'import';
+    as = 'as';
+    from = 'from';
+
+	/* Literals */
+	integer = digit+;
+	boolean = 'true' | 'false';
+	none = 'None';
+	string = '"' not_eol* '"' | ''' not_eol* ''';
+
+	/* Identifier */
+	identifier = letter (letter | digit)*;
+
+Ignored Tokens
+
+	blank, comment;
+
+Productions
+
+	/* Program is a set of commands */
+	program = command* {-> New program([command]) };
+
+	/* Command can either be a function definition or a statement */
+	command = {function_definition} function_definition
+			  {-> New command.function_definition(function_definition)} |
+			  {statement} statement
+			  {-> New command.statement(statement)};
+
+	/* Function definition */
+	function_definition = def identifier left_par argument_declaration? right_par semi statement
+						  {-> New function_definition(identifier, [argument_declaration], statement)};
+
+	/* Different forms of statements */
+	statement = {import} import {-> New statement.import(import)}|
+				{if} tab* if logical_expression semi statement
+				{-> New statement.if(logical_expression.expression, statement)} |
+				{while} tab* while logical_expression semi statement
+				{-> New statement.while(logical_expression.expression, statement)} |
+				{for} tab* for [iterator]:identifier in [sequence]:identifier semi statement
+				{-> New statement.for(iterator, sequence, statement)} |
+				{return} tab* return expression
+				{-> New statement.return(expression)} |
+				{print} tab* print expression more_expressions*
+				{-> New statement.print(expression, [more_expressions])} |
+				{assign} tab* identifier assign expression
+				{-> New statement.assign(identifier, expression)} |
+				{sub_from} tab* identifier sub_from expression
+				{-> New statement.sub_from(identifier, expression)} |
+				{div_by} tab* identifier div_by expression
+				{-> New statement.div_by(identifier, expression)} |
+				{subscription_assign} tab* identifier subscription assign expression
+				{-> New statement.subscription_assign(identifier, subscription, expression)} |
+				{assert} tab* assert expression more_expressions? 
+				{-> New statement.assert(expression, [more_expressions])} |
+				{function_call} tab* function_call
+				{-> New statement.function_call(function_call)};
+
+	import = {module0} cimport module as_identifier? commamoduleasid* {-> New import.module0(module, [as_identifier], [commamoduleasid])}|
+			 {module1} from module cimport identifier as_identifier? commaidasid*{-> New import.module1(module, identifier, [as_identifier], [commaidasid])};
+	
+	module = identifierdot* identifier;
+
+	/* Different forms of expressions */
+	expression = math_expression {-> math_expression.expression};
+
+	/* Different forms of logical expressions */
+	logical_expression {-> expression} =  boolean_expression {-> boolean_expression.expression};
+
+	/* Function calling */
+	function_call = identifier left_par arglist? right_par
+					{-> New function_call(identifier, [arglist])};
+
+	/* Different form of values */
+	value {-> expression} = {function_call} identifier dot function_call
+							{-> New expression.identifier_function_call(identifier, function_call)} |
+							{integer} integer
+							{-> New expression.integer(integer)} |
+							{string} string
+							{-> New expression.string(string)} |
+							{boolean} boolean
+							{-> New expression.boolean(boolean)} |
+							{none} none
+							{-> New expression.none(none)};
+
+	/* Operator Precedence */
+
+		/* Arithmetic Operators */
+
+			math_expression {-> expression} = subtraction {-> subtraction.expression};
+
+			subtraction {-> expression} = {addition} addition
+										  {-> addition.expression} |
+						  				  {subtraction} subtraction minus addition
+						  				  {-> New expression.subtraction(subtraction.expression, addition.expression)};
+
+			addition {-> expression} = {modulo} modulo
+									   {-> modulo.expression} |
+					   				   {addition} addition plus modulo
+					   				   {-> New expression.addition(addition.expression, modulo.expression)};
+
+			modulo {-> expression} = {division} division
+									 {-> division.expression} |
+					 				 {modulo} modulo mod division 
+					 				 {-> New expression.modulo(modulo.expression, division.expression)};
+
+			division {-> expression} = {multiplication} multiplication
+									   {-> multiplication.expression} |
+					   				   {division} division div multiplication
+					   				   {-> New expression.division(division.expression, multiplication.expression)}; 
+
+			multiplication {-> expression} = {exponentiation} exponentiation
+											 {-> exponentiation.expression} |
+							    			 {multiplication} multiplication mult exponentiation
+							    			 {-> New expression.multiplication(multiplication.expression, exponentiation.expression)};
+
+			exponentiation {-> expression} = {factor} factor 
+											 {-> factor.expression} |
+							 				 {exponentiation} exponentiation exp factor
+							 				 {-> New expression.exponentiation(exponentiation.expression, factor.expression)};
+
+		/* Logical Operators */
+
+			boolean_expression {-> expression} = or_expression
+														 {-> or_expression.expression};
+
+			or_expression {-> expression} = {and} and_expression
+													{-> and_expression.expression} |
+													{or_expression} or_expression or and_expression
+													{-> New expression.or(or_expression.expression, and_expression.expression)};
+
+			and_expression {-> expression} = {not} not_expression
+													 {-> not_expression.expression} |
+							 						 {and} and_expression and not_expression
+							 						 {-> New expression.and(and_expression.expression, not_expression.expression)} ;
+
+			not_expression {-> expression} = {comparison} comparison_expression
+													 {-> comparison_expression.expression} |
+							 						 {not} not comparison_expression
+							 						 {-> New expression.not(comparison_expression.expression)};
+
+		/* Comparison Operators */
+
+			comparison_expression {-> expression} = {equal} equal_expression
+															{-> equal_expression.expression};
+
+			equal_expression {-> expression} = {not_equal} not_equal_expression
+													   {-> not_equal_expression.expression} |
+													   {equal} equal_expression equal not_equal_expression
+													   {-> New expression.equal(equal_expression.expression, not_equal_expression.expression)};
+
+			not_equal_expression {-> expression} = {greater_equal_expression} greater_equal_expression
+														   {-> greater_equal_expression.expression} |
+								   						   {not_equal_expression} not_equal_expression not_equal greater_equal_expression
+								   						   {-> New expression.not_equal(not_equal_expression.expression, greater_equal_expression.expression)};
+
+			greater_equal_expression {-> expression} = {greater_expression} greater_expression
+															   {-> greater_expression.expression} |
+															   {greater_equal_expression} greater_equal_expression greater_equal greater_expression
+															   {-> New expression.greater(greater_equal_expression.expression, greater_expression.expression)};
+
+			greater_expression {-> expression} = {less_equal_expression} less_equal_expression
+														 {-> less_equal_expression.expression} |
+														 {greater_expression} greater_expression greater less_equal_expression
+														 {-> New expression.greater(greater_expression.expression, less_equal_expression.expression)};
+
+			less_equal_expression {-> expression} = {less_expression} less_expression
+															{-> less_expression.expression} |
+															{less_equal_expression} less_equal_expression less_equal less_expression
+															{-> New expression.less_equal(less_equal_expression.expression, less_expression.expression)};
+
+			less_expression {-> expression} = {expression} expression
+													  {-> expression} |
+							  						  {less_expression} less_expression less expression
+							  						  {-> New expression.less(less_expression.expression, expression.expression)};
+
+	/* Helper Productions */
+
+			argument_declaration = identifier argument_with_value? more_arguments*
+			{-> New argument_declaration(identifier, [argument_with_value],[more_arguments])};
+
+			argument_with_value = assign value{-> New argument_with_value(value.expression)};
+
+			more_arguments = comma identifier argument_with_value? {-> New more_arguments(identifier, [argument_with_value])};
+
+			more_values = comma value {-> New more_values(value.expression)};
+
+			arglist = expression more_expressions* {-> New arglist(expression, [more_expressions])};
+
+			more_expressions = comma expression {-> New more_expressions(expression)};
+
+			subscription = left_br expression right_br {-> New subscription(expression)};
+
+			len_expression = len left_par expression right_par {-> New len_expression(expression)};
+
+			brace_expression = left_br expression more_expressions* right_br {-> New brace_expression(expression, [more_expressions])};
+
+			identifierdot = identifier dot {-> New identifierdot(identifier)};
+
+			as_identifier = left_par as identifier right_par {-> New as_identifier(identifier)};
+			
+			commamoduleasid = comma module as_identifier?{-> New commamoduleasid(module, [as_identifier])};
+
+			commaidasid = comma identifier as_identifier?{-> New commaidasid(identifier, [as_identifier])};
+
+			factor {-> expression} = {value} value
+									 {-> value.expression} |
+									 {max} max left_par value more_values+ right_par
+									 {-> New expression.max(value.expression, [more_values])} |
+									 {min} min left_par value more_values+ right_par
+									 {-> New expression.min(value.expression, [more_values])} |
+									 {subscription} identifier subscription
+									 {-> New expression.subscription(identifier, subscription)} |
+									 {function_call} function_call
+									 {-> New expression.function_call(function_call)} |
+									 {identifier} identifier
+									 {-> New expression.identifier(identifier)};
+
+Abstract Syntax Tree
+
+	program = command*;
+
+	command = {function_definition} function_definition |
+			  {statement} statement;
+
+	function_call = identifier arglist*;
+
+	argument_declaration = identifier argument_with_value* more_arguments*;
+
+	argument_with_value = expression;
+
+	more_arguments = identifier argument_with_value*;
+
+	more_values = expression;
+
+	arglist = expression more_expressions*;
+
+	more_expressions = expression;
+
+	subscription = expression;
+
+    len_expression = expression;
+
+	brace_expression = expression more_expressions*;
+
+	identifierdot = identifier;
+
+	as_identifier = identifier;
+
+	function_definition = identifier argument_declaration* statement;
+
+	statement = {import} import |
+				{if} expression statement |
+				{while} expression statement |
+				{for} [iterator]:identifier [sequence]:identifier statement |
+				{return} expression |
+				{print} expression more_expressions* |
+				{assign} identifier expression |
+				{sub_from} identifier expression |
+				{div_by} identifier expression |
+				{subscription_assign} identifier subscription expression |
+				{assert} expression more_expressions* |
+				{function_call} function_call;
+
+	expression = {addition} [l]:expression [r]:expression |
+				 {subtraction} [l]:expression [r]:expression |
+				 {multiplication} [l]:expression [r]:expression |
+				 {division} [l]:expression [r]:expression |
+				 {modulo} [l]:expression [r]:expression |
+				 {exponentiation} [l]:expression [r]:expression |
+				 {identifier_function_call} identifier function_call |
+				 {integer} integer |
+				 {string} string |
+				 {boolean} boolean |
+				 {none} none |
+				 {subscription} identifier subscription |
+				 {function_call} function_call |
+				 {identifier} identifier |
+				 {max} expression more_values* |
+				 {min} expression more_values* |
+				 {or} [l]:expression [r]:expression |
+				 {and} [l]:expression [r]:expression |
+				 {not} expression |
+				 {equal} [l]:expression [r]:expression |
+				 {not_equal} [l]:expression [r]:expression |
+				 {greater_equal} [l]:expression [r]:expression |
+				 {greater} [l]:expression [r]:expression |
+				 {less_equal} [l]:expression [r]:expression |
+				 {less} [l]:expression [r]:expression;
+
+	import = {module0} module as_identifier* commamoduleasid* |
+			 {module1} module identifier as_identifier* commaidasid*;
+
+	module = identifierdot* identifier;
+
+	commamoduleasid = module as_identifier*;
+
+	commaidasid = identifier as_identifier*;

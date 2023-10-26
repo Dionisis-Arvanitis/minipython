@@ -1,0 +1,218 @@
+Package minipython;
+
+Helpers
+	digit = ['0' .. '9'];
+	letter = ['a' .. 'z']|['A' .. 'Z'];
+	cr = 13; 
+	lf = 10;
+	all = [0..127]; 
+	eol = lf | cr | cr lf ;
+	not_eol = [all - [cr + lf]]; 
+
+Tokens
+
+	tab = 9;
+	blank = (' ' | lf | cr);
+	comment = '#' not_eol* eol; 
+
+	/* Arithmetic Operators */
+	plus = '+';
+	minus = '-';
+	mult = '*';
+	exp = '**';
+	div = '/';
+	mod = '%';
+
+	/* Assignment Operators */
+	assign = '=';
+	sub_from = '-=';
+	div_by = '/=';
+
+	/* Logical Operators */
+	and = 'and';
+	or = 'or';
+	not = 'not';
+
+	/* Comparison Operators */
+	greater = '>';
+	less = '<';
+	greater_equal = '>=';
+	less_equal = '<=';
+	not_equal = '!=';
+	equal = '==';
+
+	/* Symbols */
+	left_par = '(';
+	right_par = ')';
+	left_br = '[';
+	right_br = ']';
+	comma = ',';
+	semi = ':';
+	dot = '.';
+
+	/* Keywords */
+	def = 'def';
+	if = 'if';
+	while = 'while';
+	for = 'for';
+	print = 'print';
+	return = 'return';
+	max = 'max';
+	min = 'min';
+	in = 'in';
+	assert = 'assert';
+	len = 'len';
+    cimport = 'import';
+    as = 'as';
+    from = 'from';
+
+	/* Literals */
+	integer = digit+;
+	boolean = 'true' | 'false';
+	none = 'None';
+	string = '"' not_eol* '"' | ''' not_eol* ''';
+
+	/* Identifier */
+	identifier = letter (letter | digit)*;
+
+Ignored Tokens
+
+	blank, comment;
+
+Productions
+
+	/* Program is a set of commands */
+	program = command*;
+
+	/* Command can either be a function definition or a statement */
+	command = {function_definition} function_definition |
+			  {statement} statement |
+			  {import} import;
+
+	/* Function definition */
+	function_definition = def identifier left_par argument_declaration? right_par semi statement;
+
+	/* Different forms of statements */
+	statement = {if} tab* if logical_expression semi statement |
+				{while} tab* while logical_expression semi statement |
+				{for} tab* for [iterator]:identifier in [sequence]:identifier semi statement |
+				{return} tab* return expression |
+				{print} tab* print expression more_expressions* |
+				{assign} tab* identifier assign expression |
+				{sub_from} tab* identifier sub_from expression |
+				{div_by} tab* identifier div_by expression |
+				{subscription_assign} tab* identifier subscription assign expression |
+				{assert} tab* assert expression more_expressions? |
+				{function_call} tab* function_call;
+	
+	import = {module0} cimport [first_module]:module [identifier1]:as_identifier? left_par comma [second_module]:module [identifier2]:as_identifier? right_par* |
+			 {module1} from module cimport [identifier1]:identifier [as_identifier1]:as_identifier? left_par comma [identifier2]:identifier [as_identifier2]:as_identifier? right_par*;
+	
+	module = identifierdot* identifier;
+	
+	/* Different forms of expressions */
+	expression = math_expression;
+
+	/* Different forms of logical expressions */
+	logical_expression =  boolean_expression;
+
+	/* Function calling */
+	function_call = identifier left_par arglist? right_par;
+
+	/* Different form of values */
+	value = {function_call} identifier dot function_call |
+			{integer} integer |
+			{string} string |
+			{boolean} boolean |
+			{none} none;
+
+	/* Operator Precedence */
+
+		/* Arithmetic Operators */
+
+			math_expression = {len} len_expression |
+							  {brace} brace_expression |
+							  {sub} subtraction;
+
+			subtraction = {addition} addition |
+						  {subtraction} subtraction minus addition;
+
+			addition = {modulo} modulo |
+					   {addition} addition plus modulo;
+
+			modulo = {division} division |
+					 {modulo} modulo mod division;
+
+			division = {multiplication} multiplication |
+					   {division} division div multiplication; 
+
+			multiplication = {exponentiation} exponentiation |
+							 {multiplication} multiplication mult exponentiation;
+
+			exponentiation = {factor} factor |
+							 {exponentiation} exponentiation exp factor;
+
+		/* Logical Operators */
+
+			boolean_expression = or_expression;
+
+			or_expression = {and_expression} and_expression |
+							{or_expression} or_expression or and_expression;
+
+			and_expression = {not_expression} not_expression |
+							 {and_expression} and_expression and not_expression;
+
+			not_expression = {comparison_expression} comparison_expression |
+							 {not_expression} not comparison_expression;
+
+		/* Comparison Operators */
+
+			comparison_expression = {equal_expression} equal_expression;
+
+			equal_expression = {not_equal_expression} not_equal_expression |
+							   {equal_expression} equal_expression equal not_equal_expression;
+
+			not_equal_expression = {greater_equal_expression} greater_equal_expression |
+								   {not_equal_expression} not_equal_expression not_equal greater_equal_expression;
+
+			greater_equal_expression = {greater_expression} greater_expression |
+									   {greater_equal_expression} greater_equal_expression greater_equal greater_expression;
+
+			greater_expression = {less_equal_expression} less_equal_expression |
+								 {greater_expression} greater_expression greater less_equal_expression;
+
+			less_equal_expression = {less_expression} less_expression |
+									{less_equal_expression} less_equal_expression less_equal less_expression;
+
+			less_expression = {expression} expression |
+							  {less_expression} less_expression less expression;
+
+	/* Helper Productions */
+            argument_declaration = identifier argument_with_value? more_arguments*;
+
+            argument_with_value = assign value; /* Helper production */
+
+            more_arguments = comma identifier argument_with_value?; /* Helper production */
+
+            more_values = comma value; /* Helper production */
+
+            arglist = expression more_expressions*; /* Helper production */
+
+            more_expressions = comma expression; /* Helper production */
+
+            subscription = left_br expression right_br; /* Helper production */
+            
+            len_expression = len left_par expression right_par;
+            
+            brace_expression = left_br expression more_expressions* right_br;
+
+			identifierdot = identifier dot;
+
+			as_identifier = left_par as identifier right_par;
+			
+            factor = {value} value |
+                    {subscription} identifier subscription |
+                    {function_call} function_call |
+                    {identifier} identifier |
+					{max} max left_par value more_values+ right_par |
+					{min} min left_par value more_values+ right_par;
